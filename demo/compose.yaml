@@ -1,0 +1,23 @@
+# The demo runs inside the devnet's Docker network: Synapse and the PoRep SP use the same
+# container names as the rest of the devnet (lotus, curio, curio-porep, yugabyte).
+name: pdp-podsi-porep-demo
+
+services:
+  demo:
+    build:
+      context: .
+      additional_contexts:
+        podsicheck: ../docs/pdp-podsi-porep/podsicheck
+    image: pdp-podsi-porep-demo
+    ports:
+      - "127.0.0.1:8787:8787"
+    volumes:
+      - ../.runtime/devnet/data/contracts:/var/lib/contracts:ro
+      - ../.runtime/demo:/data
+    networks: [devnet]
+    restart: unless-stopped
+
+networks:
+  devnet:
+    name: porep-market-curio-devnet_default
+    external: true

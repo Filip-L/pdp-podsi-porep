@@ -22,7 +22,7 @@ test("filecoinAddressFromEvmStat parses Lotus EVM output", () => {
 test("assertCurioStatus accepts the required live harness state", () => {
   assert.doesNotThrow(() => assertCurioStatus({
     generation: "generation-a",
-    chain: { networkVersion: 28, actorsVersion: 18 },
+    chain: { networkVersion: 29, actorsVersion: 19 },
     miner: { provider: "t01004", sectorSize: 8_388_608 },
     curio: { apiReady: true, marketReady: true, databaseReady: true, taskCount: 2 },
   }, "generation-a", "t01004"));
@@ -31,7 +31,7 @@ test("assertCurioStatus accepts the required live harness state", () => {
 test("assertCurioStatus rejects stale or incomplete provider state", () => {
   const base = {
     generation: "generation-a",
-    chain: { networkVersion: 28, actorsVersion: 18 },
+    chain: { networkVersion: 29, actorsVersion: 19 },
     miner: { provider: "t01004", sectorSize: 8_388_608 },
     curio: { apiReady: true, marketReady: true, databaseReady: true, taskCount: 2 },
   };

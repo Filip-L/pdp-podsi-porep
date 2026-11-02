@@ -48,17 +48,18 @@ test("runtime lock loads the exact devnet network schedule and actor CIDs", asyn
   assert.deepEqual(lock.network, {
     chainId: 31_415_926,
     genesis: {
-      networkVersion: 27,
-      actorsVersion: 17,
-    },
-    firehorse: {
-      epoch: 200,
       networkVersion: 28,
       actorsVersion: 18,
     },
-    actorsV18: {
-      manifestCid: "bafy2bzaced35gjxagazf2fne5dakbok5abmivsh7cq7huwfuptebgwjmcpcf6",
-      storageMinerActorCid: "bafk2bzacedhvcxgdz2w75izwa5s5dwvsrxsnzkjcbpbresziyrrjrsvjzwvxe",
+    upgrade: {
+      name: "Solstice",
+      epoch: 200,
+      networkVersion: 29,
+      actorsVersion: 19,
+    },
+    upgradeActors: {
+      manifestCid: "bafy2bzaceb7ifsrt75k2ptfpqbdya3ixaedfmdwd45vjllijch6zbbsijjc26",
+      storageMinerActorCid: "bafk2bzacebetll5dlaahxvxbu7oogdd2i7bo4hqh5zomgynnfuph2dtjnf2d2",
     },
   });
 });
@@ -76,20 +77,15 @@ test("runtime lock loads every immutable image index and required platform child
       ],
     ])),
     {
-      lotus_devnet: [
-        "ghcr.io/filecoin-shipyard/lotus-containers:lotus-v1.36.0-devnet@sha256:aeb1de6103a07ee316d45d09141a8063fc67fa99d14289c38fe0f2aeee84f4a9",
-        "sha256:731dbcecbc3ba69943076e0eb986da030de1509d92100fb7880bc2f23a869ead",
-        "sha256:cce2db8da59446ebc2bcd00743798a9b1833258c55499a5bfbffbec66e7e7afe",
-      ],
       yugabyte: [
         "docker.io/yugabytedb/yugabyte:2024.1.0.0-b129@sha256:5074792658b19c1379d79fdfe418d33a6587c2637422f56d0d224d8bbbe277a8",
         "sha256:a1f1302c9d1384f77fd06fd71845a9b10f9450282c440cc903edddf0dc11a458",
         "sha256:21893ba85b5d73105418af430e684452026bcaf0e6af245cc036f68797630ef6",
       ],
       go_builder: [
-        "docker.io/library/golang:1.26-trixie@sha256:4ee9ffa999b4583ce281939cdff828763083610292f252279a0cee77473bd9a7",
-        "sha256:dbb10bd1b3400ba0858e2f7c354fd4556b782c187feeff52789d4ee156a84db8",
-        "sha256:d86488d9077169d6dd4fa32e954e8b68a41e94e32c0ec3d3fefdcc017ac9a759",
+        "docker.io/library/golang:1.26-trixie@sha256:6427f09fc28b78d6ccac20bbc2011794126b49f2f43c424aa5a197c642a8be36",
+        "sha256:4ddd76d158c062213aaf055513809cdac05a445b2db3a0f12dbb624ed2e577d9",
+        "sha256:220fc85e089da8f6ebdb609cfe9c952e4c0784d525679419ca2bbd53f5a6cdfe",
       ],
       rust_toolchain: [
         "docker.io/library/rust:1.86.0-slim-bookworm@sha256:57d415bbd61ce11e2d5f73de068103c7bd9f3188dc132c97cef4a8f62989e944",
@@ -218,9 +214,9 @@ test("runtime lock loads the exact project, seven services, and port bindings", 
 
 test("runtime lock rejects invalid and floating image digests", async () => {
   await withMutatedLock((lock) => {
-    mapping(mapping(lock.images).lotus_devnet).index_digest = "sha256:ABC";
+    mapping(mapping(lock.images).yugabyte).index_digest = "sha256:ABC";
   }, async (path) => {
-    await assert.rejects(loadRuntimeLock(path), /lotus_devnet index_digest.*sha256.*64 lowercase/i);
+    await assert.rejects(loadRuntimeLock(path), /yugabyte index_digest.*sha256.*64 lowercase/i);
   });
 
   await withMutatedLock((lock) => {
@@ -288,17 +284,17 @@ test("runtime lock rejects an inconsistent network schedule", async () => {
   });
 
   await withMutatedLock((lock) => {
-    mapping(lock.network).firehorse_upgrade_epoch = 0;
+    mapping(lock.network).upgrade_epoch = 0;
   }, async (path) => {
-    await assert.rejects(loadRuntimeLock(path), /FireHorse epoch.*positive/i);
+    await assert.rejects(loadRuntimeLock(path), /upgrade_epoch.*positive/i);
   });
 });
 
 test("runtime lock rejects invalid actor CIDs", async () => {
   await withMutatedLock((lock) => {
-    mapping(mapping(lock.network).actors_v18).manifest_cid = "not-a-cid";
+    mapping(mapping(lock.network).upgrade_actors).manifest_cid = "not-a-cid";
   }, async (path) => {
-    await assert.rejects(loadRuntimeLock(path), /actors_v18 manifest_cid.*CID/i);
+    await assert.rejects(loadRuntimeLock(path), /actors_v19 manifest_cid.*CID/i);
   });
 });
 
@@ -322,8 +318,8 @@ test("runtime lock rejects unsafe YAML shapes, reserved keys, and unknown fields
 test("runtime lock rejects unresolved YAML tag warnings", async () => {
   const checkedIn = await readFile(checkedInLockPath, "utf8");
   const warned = checkedIn.replace(
-    "repository: https://github.com/CodeWarriorr/curio.git",
-    "repository: !runtime-warning https://github.com/CodeWarriorr/curio.git",
+    "repository: https://github.com/filecoin-project/curio.git",
+    "repository: !runtime-warning https://github.com/filecoin-project/curio.git",
   );
   assert.notEqual(warned, checkedIn);
 
@@ -336,7 +332,7 @@ test("runtime lock child process never discloses warning source credentials", as
   const checkedIn = await readFile(checkedInLockPath, "utf8");
   const secret = "S3cr3t7d425e63";
   const warned = checkedIn.replace(
-    "repository: https://github.com/CodeWarriorr/curio.git",
+    "repository: https://github.com/filecoin-project/curio.git",
     `repository: !runtime-warning https://fixture-user:${secret}@example.test/repo.git`,
   );
   assert.notEqual(warned, checkedIn);
@@ -412,8 +408,8 @@ test("runtime lock verify CLI is credential-free and reports typed public inputs
     { cwd: toolsRoot, timeoutMs: 10_000 },
   );
 
-  assert.match(result.stdout, /^network\t31415926\tNV27\/actors-v17\tepoch-200=NV28\/actors-v18$/m);
-  assert.match(result.stdout, /^image\tlotus_devnet\t.*@sha256:[0-9a-f]{64}\tlinux\/amd64=sha256:/m);
+  assert.match(result.stdout, /^network\t31415926\tNV28\/actors-v18\tepoch-200=NV29\/actors-v19$/m);
+  assert.match(result.stdout, /^image\tyugabyte\t.*@sha256:[0-9a-f]{64}\tlinux\/amd64=sha256:/m);
   assert.match(result.stdout, /^tool\tnode\t24\.14\.0$/m);
   assert.match(result.stdout, /^tool\tfoundry\tv1\.7\.1\t4072e48705af9d93e3c0f6e29e93b5e9a40caed8$/m);
   assert.match(

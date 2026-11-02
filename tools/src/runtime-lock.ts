@@ -16,7 +16,6 @@ const RFC3339_PATTERN =
   /^([0-9]{4})-([0-9]{2})-([0-9]{2})[Tt]([0-9]{2}):([0-9]{2}):([0-9]{2})(?:\.[0-9]+)?(?:[Zz]|([+-])([0-9]{2}):([0-9]{2}))$/;
 
 export const runtimeImageNames = [
-  "lotus_devnet",
   "yugabyte",
   "go_builder",
   "rust_toolchain",
@@ -72,12 +71,13 @@ export interface RuntimeLock {
       networkVersion: number;
       actorsVersion: number;
     };
-    firehorse: {
+    upgrade: {
+      name: string;
       epoch: number;
       networkVersion: number;
       actorsVersion: number;
     };
-    actorsV18: {
+    upgradeActors: {
       manifestCid: string;
       storageMinerActorCid: string;
     };
@@ -183,11 +183,12 @@ function parseNetwork(network: Record<string, unknown>): RuntimeLock["network"] 
     "chain_id",
     "genesis_network_version",
     "genesis_actors_version",
-    "firehorse_upgrade_epoch",
+    "upgrade_name",
+    "upgrade_epoch",
     "required_network_version",
     "required_actors_version",
-    "actors_v17",
-    "actors_v18",
+    "genesis_actors",
+    "upgrade_actors",
   ], "network");
 
   const chainId = requiredPositiveInteger(network.chain_id, "network chain_id");
@@ -195,8 +196,9 @@ function parseNetwork(network: Record<string, unknown>): RuntimeLock["network"] 
     requiredPositiveInteger(network.genesis_network_version, "network genesis_network_version");
   const genesisActorsVersion =
     requiredPositiveInteger(network.genesis_actors_version, "network genesis_actors_version");
-  const firehorseEpoch =
-    requiredPositiveInteger(network.firehorse_upgrade_epoch, "network FireHorse epoch");
+  const upgradeName = requiredString(network.upgrade_name, "network upgrade_name");
+  const upgradeEpoch =
+    requiredPositiveInteger(network.upgrade_epoch, "network upgrade_epoch");
   const requiredNetworkVersion =
     requiredPositiveInteger(network.required_network_version, "network required_network_version");
   const requiredActorsVersion =
@@ -208,10 +210,14 @@ function parseNetwork(network: Record<string, unknown>): RuntimeLock["network"] 
   if (requiredActorsVersion <= genesisActorsVersion) {
     throw new Error("required actors version must be greater than genesis actors version");
   }
-  parseActorBundle(requiredMapping(network.actors_v17, "network actors_v17"), 17, false);
-  const actorsV18 = parseActorBundle(
-    requiredMapping(network.actors_v18, "network actors_v18"),
-    18,
+  parseActorBundle(
+    requiredMapping(network.genesis_actors, "network genesis_actors"),
+    genesisActorsVersion,
+    false,
+  );
+  const upgradeActors = parseActorBundle(
+    requiredMapping(network.upgrade_actors, "network upgrade_actors"),
+    requiredActorsVersion,
     true,
   );
 
@@ -221,21 +227,22 @@ function parseNetwork(network: Record<string, unknown>): RuntimeLock["network"] 
       networkVersion: genesisNetworkVersion,
       actorsVersion: genesisActorsVersion,
     },
-    firehorse: {
-      epoch: firehorseEpoch,
+    upgrade: {
+      name: upgradeName,
+      epoch: upgradeEpoch,
       networkVersion: requiredNetworkVersion,
       actorsVersion: requiredActorsVersion,
     },
-    actorsV18: {
-      manifestCid: actorsV18.manifestCid,
-      storageMinerActorCid: actorsV18.storageMinerActorCid,
+    upgradeActors: {
+      manifestCid: upgradeActors.manifestCid,
+      storageMinerActorCid: upgradeActors.storageMinerActorCid,
     },
   };
 }
 
 function parseActorBundle(
   actor: Record<string, unknown>,
-  version: 17 | 18,
+  version: number,
   requireCids: boolean,
 ): { manifestCid: string; storageMinerActorCid: string } {
   const baseKeys = ["repository", "tag", "commit"];
@@ -248,9 +255,9 @@ function parseActorBundle(
   if (!requireCids) {
     return { manifestCid: "", storageMinerActorCid: "" };
   }
-  const manifestCid = requiredCid(actor.manifest_cid, "actors_v18 manifest_cid");
+  const manifestCid = requiredCid(actor.manifest_cid, `actors_v${version} manifest_cid`);
   const storageMinerActorCid =
-    requiredCid(actor.storage_miner_actor_cid, "actors_v18 storage_miner_actor_cid");
+    requiredCid(actor.storage_miner_actor_cid, `actors_v${version} storage_miner_actor_cid`);
   return { manifestCid, storageMinerActorCid };
 }
 

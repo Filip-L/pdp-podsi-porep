@@ -45,7 +45,7 @@ devnet_write_compose_env() {
   manifest_platform="$(jq -r '.platform' "${image_manifest}")"
   [[ "${manifest_lotus}" =~ ^[0-9a-f]{40}$ && "${manifest_blst}" =~ ^[0-9a-f]{40}$ && "${manifest_hash}" =~ ^[0-9a-f]{64}$ && "${manifest_platform}" =~ ^linux/(amd64|arm64)$ ]] || devnet_die "image manifest fields are invalid"
   [[ "${manifest_lotus}" == "${lotus_commit}" && "${manifest_blst}" == "${blst_commit}" ]] || devnet_die "image manifest source commits do not match verified sources"
-  [[ "$(shasum -a 256 "${DEVNET_ROOT}/docker/curio-all-in-one.Dockerfile" | awk '{print $1}')" == "${manifest_hash}" ]] || devnet_die "image manifest Dockerfile hash mismatch"
+  [[ "$(devnet_build_inputs_sha256)" == "${manifest_hash}" ]] || devnet_die "image manifest Dockerfile/patch hash mismatch"
   grep -Fq "\"curioCommit\": \"${curio_commit}\"" "${image_manifest}" || devnet_die "image manifest Curio commit mismatch"
   for image in curio-all-in-one lotus contracts-bootstrap lotus-miner curio piece-server indexer; do
     grep -Fq "\"reference\": \"${DEVNET_IMAGE_NAMESPACE}/${image}:${curio_commit:0:12}\"" "${image_manifest}" || devnet_die "image manifest is missing ${image}"
@@ -375,6 +375,15 @@ devnet_normalize_architecture() {
       devnet_die "unsupported architecture: $1"
       ;;
   esac
+}
+
+# Fingerprint of everything baked into the base image besides pinned sources: the Dockerfile
+# plus every Curio patch, so editing a patch invalidates the reusable image manifest.
+devnet_build_inputs_sha256() {
+  {
+    shasum -a 256 "${DEVNET_ROOT}/docker/curio-all-in-one.Dockerfile"
+    find "${DEVNET_ROOT}/patches/curio" -type f -name '*.patch' | LC_ALL=C sort | xargs shasum -a 256
+  } | awk '{print $1}' | shasum -a 256 | awk '{print $1}'
 }
 
 devnet_curio_source_path() {

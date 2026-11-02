@@ -286,13 +286,13 @@ export function inspectDevnetStatus(
   if (
     chain.chainId !== `0x${lock.network.chainId.toString(16)}`
     || !Number.isInteger(chain.epoch)
-    || (chain.epoch as number) < lock.network.firehorse.epoch
-    || chain.networkVersion !== lock.network.firehorse.networkVersion
-    || chain.actorsVersion !== lock.network.firehorse.actorsVersion
-    || chain.manifestCid !== lock.network.actorsV18.manifestCid
-    || chain.minerActorCodeCid !== lock.network.actorsV18.storageMinerActorCid
+    || (chain.epoch as number) < lock.network.upgrade.epoch
+    || chain.networkVersion !== lock.network.upgrade.networkVersion
+    || chain.actorsVersion !== lock.network.upgrade.actorsVersion
+    || chain.manifestCid !== lock.network.upgradeActors.manifestCid
+    || chain.minerActorCodeCid !== lock.network.upgradeActors.storageMinerActorCid
   ) {
-    throw new Error("live chain does not match the required NV28 actor state");
+    throw new Error(`live chain does not match the required NV${lock.network.upgrade.networkVersion} actor state`);
   }
 
   const miner = record(root.miner, "miner");

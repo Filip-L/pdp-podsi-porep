@@ -89,8 +89,8 @@ while ((SECONDS < deadline)); do
   epoch="$(bounded_compose exec -T lotus lotus chain head --height 2>/dev/null || true)"
   network_output="$(bounded_compose exec -T lotus lotus state network-version 2>/dev/null || true)"
   network_version="$(awk '/Network Version:/ {print $3}' <<<"${network_output}")"
-  if [[ ! "${epoch}" =~ ^[0-9]+$ || ! "${network_version}" =~ ^[0-9]+$ || "${epoch}" -lt 200 || "${network_version}" -ne 28 ]]; then
-    last_state="chain epoch=${epoch:-unknown} networkVersion=${network_version:-unknown}; waiting for epoch 200/NV28"
+  if [[ ! "${epoch}" =~ ^[0-9]+$ || ! "${network_version}" =~ ^[0-9]+$ || "${epoch}" -lt 200 || "${network_version}" -ne 29 ]]; then
+    last_state="chain epoch=${epoch:-unknown} networkVersion=${network_version:-unknown}; waiting for epoch 200/NV29"
     status_pause || break
     continue
   fi
@@ -134,7 +134,7 @@ while ((SECONDS < deadline)); do
   generation="$(tr -d '\n' < "${DEVNET_RUNTIME_DIR}/generation" 2>/dev/null || true)"
 
   if [[
-    "${actors_version}" != 18
+    "${actors_version}" != 19
     || -z "${manifest_cid}"
     || -z "${miner_actor_cid}"
     || ! "${provider}" =~ ^t0[0-9]+$

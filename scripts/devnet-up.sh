@@ -21,7 +21,7 @@ for _ in {1..150}; do
           SELECT 1 FROM curio.harmony_config
           WHERE title = 'market'
             AND config LIKE '%ParkPieceMinFreeStoragePercent = 0%'
-            AND config LIKE '%SSRFAllowedHosts = [\"piece-server:12320\"]%'
+            AND config LIKE '%SSRFAllowedHosts = [\"piece-server:12320\", \"curio:12310\"]%'
         ) THEN 'configured'
         WHEN EXISTS (
           SELECT 1 FROM curio.harmony_config WHERE title = 'market'
@@ -36,10 +36,22 @@ for _ in {1..150}; do
       SET config = replace(
         config,
         E'[Ingest]\\n',
-        E'[Ingest]\\n    SSRFAllowedHosts = [\"piece-server:12320\"]\\n'
+        E'[Ingest]\\n    SSRFAllowedHosts = [\"piece-server:12320\", \"curio:12310\"]\\n'
       )
       WHERE title = 'market'
         AND config NOT LIKE '%SSRFAllowedHosts%'
+    " >/dev/null 2>&1 || { sleep 2; continue; }
+    # Migrate an older allow-list in place; the insert above only covers a missing key.
+    devnet_compose exec -T yugabyte ysqlsh -h yugabyte -U yugabyte -d yugabyte -q -c "
+      UPDATE curio.harmony_config
+      SET config = regexp_replace(
+        config,
+        'SSRFAllowedHosts = \\[[^]]*\\]',
+        'SSRFAllowedHosts = [\"piece-server:12320\", \"curio:12310\"]'
+      )
+      WHERE title = 'market'
+        AND config LIKE '%SSRFAllowedHosts%'
+        AND config NOT LIKE '%SSRFAllowedHosts = [\"piece-server:12320\", \"curio:12310\"]%'
     " >/dev/null 2>&1 || { sleep 2; continue; }
     devnet_compose exec -T yugabyte ysqlsh -h yugabyte -U yugabyte -d yugabyte -q -c "
       UPDATE curio.harmony_config

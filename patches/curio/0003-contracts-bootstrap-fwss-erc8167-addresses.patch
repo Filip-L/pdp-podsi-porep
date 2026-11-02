@@ -1,0 +1,24 @@
+diff --git a/docker/contracts-bootstrap/entrypoint.sh b/docker/contracts-bootstrap/entrypoint.sh
+index 250d814b..b59a84f9 100644
+--- a/docker/contracts-bootstrap/entrypoint.sh
++++ b/docker/contracts-bootstrap/entrypoint.sh
+@@ -269,6 +269,8 @@ main() {
+   local pdp_verifier_proxy_address
+   local pdp_verifier_implementation_address
+   local fwss_proxy_address
++  # filecoin-services v1.5+ (ERC-8167) records FWSS_DISPATCHER_ADDRESS instead of an
++  # implementation, and serves the state view from the FWSS proxy itself.
+   local fwss_implementation_address
+   local fwss_view_address
+   local service_registry_proxy_address
+@@ -279,8 +281,8 @@ main() {
+   pdp_verifier_proxy_address="$(jq -r --arg chain "$chain_id" '.[$chain].PDP_VERIFIER_PROXY_ADDRESS // empty' deployments.json)"
+   pdp_verifier_implementation_address="$(jq -r --arg chain "$chain_id" '.[$chain].PDP_VERIFIER_IMPLEMENTATION_ADDRESS // empty' deployments.json)"
+   fwss_proxy_address="$(jq -r --arg chain "$chain_id" '.[$chain].FWSS_PROXY_ADDRESS // empty' deployments.json)"
+-  fwss_implementation_address="$(jq -r --arg chain "$chain_id" '.[$chain].FWSS_IMPLEMENTATION_ADDRESS // empty' deployments.json)"
+-  fwss_view_address="$(jq -r --arg chain "$chain_id" '.[$chain].FWSS_VIEW_ADDRESS // empty' deployments.json)"
++  fwss_implementation_address="$(jq -r --arg chain "$chain_id" '.[$chain].FWSS_IMPLEMENTATION_ADDRESS // .[$chain].FWSS_DISPATCHER_ADDRESS // empty' deployments.json)"
++  fwss_view_address="$(jq -r --arg chain "$chain_id" '.[$chain].FWSS_VIEW_ADDRESS // .[$chain].FWSS_PROXY_ADDRESS // empty' deployments.json)"
+   service_registry_proxy_address="$(jq -r --arg chain "$chain_id" '.[$chain].SERVICE_PROVIDER_REGISTRY_PROXY_ADDRESS // empty' deployments.json)"
+   service_registry_implementation_address="$(jq -r --arg chain "$chain_id" '.[$chain].SERVICE_PROVIDER_REGISTRY_IMPLEMENTATION_ADDRESS // empty' deployments.json)"
+   filecoin_pay_address="$(jq -r --arg chain "$chain_id" '.[$chain].FILECOIN_PAY_ADDRESS // empty' deployments.json)"

@@ -1,0 +1,25 @@
+# Node B: a second, independent Curio SP (PoRep only) joined to the running devnet network.
+# Started by up.sh; the main harness compose (7 services) stays untouched.
+name: porep-node-b
+services:
+  curio-porep:
+    image: ${DEVNET_IMAGE_NAMESPACE}/curio:${DEVNET_CURIO_SHORT_COMMIT}
+    hostname: curio-porep
+    init: true
+    entrypoint: ["/porep-node-entrypoint.sh"]
+    environment:
+      - CURIO_REPO_PATH=/var/lib/curio
+      - CURIO_HARMONYDB_HOSTS=yugabyte
+      - CURIO_DB_NAME=curio_porep
+    ports: ["127.0.0.1:22410:12310", "127.0.0.1:24801:4701"]
+    volumes:
+      - ${NODE_B_DATA_DIR}:/var/lib/curio:rw
+      - ${DEVNET_DATA_DIR}/lotus:/var/lib/lotus:ro
+      - ${DEVNET_DATA_DIR}/contracts:/var/lib/contracts:ro
+      - ${DEVNET_PROOF_PARAMETERS_DIR}:/var/tmp/filecoin-proof-parameters:rw
+      - ./porep-node-entrypoint.sh:/porep-node-entrypoint.sh:ro
+    networks: [devnet]
+networks:
+  devnet:
+    name: porep-market-curio-devnet_default
+    external: true

@@ -126,6 +126,7 @@ curio_source="$(devnet_curio_source_path "${curio_commit}")"
 blst_source="$(devnet_blst_source_path "${blst_commit}")"
 curio_source_relative=".cache/sources/curio/${curio_commit}"
 blst_source_relative=".cache/sources/blst/${blst_commit}"
+lotus_source_relative=".cache/sources/lotus/${lotus_commit}"
 [[ "${curio_source_reported}" == "${curio_source}" ]] ||
   devnet_die "typed Curio source path does not match the managed source path"
 [[ "${blst_source_reported}" == "${blst_source}" ]] ||
@@ -134,13 +135,15 @@ blst_source_relative=".cache/sources/blst/${blst_commit}"
   devnet_die "managed Curio source path is missing or symbolic"
 [[ -d "${blst_source}" && ! -L "${blst_source}" ]] ||
   devnet_die "managed BLST source path is missing or symbolic"
+[[ -d "${DEVNET_ROOT}/${lotus_source_relative}/extern/filecoin-ffi/rust" && ! -L "${DEVNET_ROOT}/${lotus_source_relative}" ]] ||
+  devnet_die "managed Lotus source path or its filecoin-ffi submodule is missing"
 for blst_input in build.sh build src bindings LICENSE; do
   [[ -e "${blst_source}/${blst_input}" && ! -L "${blst_source}/${blst_input}" ]] ||
     devnet_die "managed BLST source is missing required tracked input ${blst_input}"
 done
 
 for required_image in \
-  lotus_devnet yugabyte go_builder rust_toolchain ubuntu_runtime node_runtime foundry; do
+  yugabyte go_builder rust_toolchain ubuntu_runtime node_runtime foundry; do
   [[ "${image_references[${required_image}]:-}" =~ @sha256:[0-9a-f]{64}$ ]] ||
     devnet_die "typed runtime lock did not report immutable ${required_image} image"
 done
@@ -152,7 +155,7 @@ done
 
 dockerfile_relative="docker/curio-all-in-one.Dockerfile"
 dockerfile="${DEVNET_ROOT}/${dockerfile_relative}"
-dockerfile_sha256="$(shasum -a 256 "${dockerfile}" | awk '{print $1}')"
+dockerfile_sha256="$(devnet_build_inputs_sha256)"
 curio_short_commit="${curio_commit:0:12}"
 platform="linux/${docker_architecture}"
 
@@ -193,15 +196,15 @@ docker buildx build \
   --file "${dockerfile_relative}" \
   --target curio-all-in-one \
   --build-context "blst-source=${blst_source_relative}" \
+  --build-context "lotus-source=${lotus_source_relative}" \
   --build-context "harness-overlay=." \
-  --build-arg "LOTUS_TEST_IMAGE=${image_references[lotus_devnet]}" \
   --build-arg "GO_BUILDER_IMAGE=${image_references[go_builder]}" \
   --build-arg "RUST_TOOLCHAIN_IMAGE=${image_references[rust_toolchain]}" \
   --build-arg "UBUNTU_RUNTIME_IMAGE=${image_references[ubuntu_runtime]}" \
   --build-arg "NODE_RUNTIME_IMAGE=${image_references[node_runtime]}" \
   --build-arg "FOUNDRY_IMAGE=${image_references[foundry]}" \
   --build-arg "CURIO_COMMIT=${curio_commit}" \
-  --build-arg "CURIO_FFI_COMMIT=fbe802089480458d730cbce8a3ca83dcd84a4cd1" \
+  --build-arg "CURIO_FFI_COMMIT=f9b4aecf63c4ee7c90119693aad3fed947856527" \
   --build-arg "CURIO_TAGS=cunative debug nosupraseal" \
   --build-arg "GO_CAR_COMMIT=${tool_commits[go_car]}" \
   --build-arg "PIECE_SERVER_COMMIT=${tool_commits[piece_server]}" \
@@ -224,8 +227,20 @@ derived_builds=(
 
 for derived_build in "${derived_builds[@]}"; do
   IFS='|' read -r relative_dockerfile relative_context derived_image <<<"${derived_build}"
+  context_path="${curio_source_relative}/${relative_context}"
+  if [[ "${relative_context}" == docker/contracts-bootstrap ]]; then
+    # filecoin-services v1.5+ renamed FWSS deployment keys; patch a copy, never the verified source.
+    context_patch="${DEVNET_ROOT}/patches/curio/0003-contracts-bootstrap-fwss-erc8167-addresses.patch"
+    context_path=".runtime/devnet/build/contexts/contracts-bootstrap"
+    rm -rf "${context_path}"
+    mkdir -p "${context_path}"
+    cp -R "${curio_source_relative}/${relative_context}/." "${context_path}/"
+    patch -p3 --batch --forward --dry-run -d "${context_path}" <"${context_patch}" >/dev/null ||
+      devnet_die "contracts-bootstrap patch does not apply to the verified Curio context"
+    patch -p3 --batch --forward -d "${context_path}" <"${context_patch}" >/dev/null
+  fi
   printf 'building %s from verified upstream service context %s\n' \
-    "${derived_image}" "${relative_context}"
+    "${derived_image}" "${context_path}"
   docker buildx build \
     --load \
     --provenance=false \
@@ -235,7 +250,7 @@ for derived_build in "${derived_builds[@]}"; do
     --build-arg "CURIO_TEST_IMAGE=${base_image}" \
     --build-arg "BUILD_VERSION=${curio_short_commit}" \
     --tag "${derived_image}" \
-    "${curio_source_relative}/${relative_context}"
+    "${context_path}"
 done
 
 images=(

@@ -1,0 +1,43 @@
+{
+  "name": "pdp-podsi-porep-demo",
+  "private": true,
+  "type": "module",
+  "description": "Demo: own files -> PDP (Synapse) -> PoDSI aggregate -> PoRep sector, with verification at every step",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "start": "tsx server/index.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "dependencies": {
+    "@filoz/synapse-core": "0.10.0",
+    "@filoz/synapse-sdk": "2.0.2",
+    "@hono/node-server": "2.1.5",
+    "@ipld/car": "5.4.7",
+    "@multiformats/multiaddr": "13.0.3",
+    "@noble/curves": "1.9.7",
+    "@noble/hashes": "1.8.0",
+    "hono": "4.13.14",
+    "multiformats": "14.0.5",
+    "pg": "8.23.1",
+    "tsx": "4.23.15",
+    "ulid": "3.0.2",
+    "viem": "2.57.13"
+  },
+  "devDependencies": {
+    "@tailwindcss/vite": "4.3.3",
+    "@types/node": "26.6.6",
+    "@types/pg": "8.23.1",
+    "@types/react": "19.3.0",
+    "@types/react-dom": "19.3.0",
+    "@vitejs/plugin-react": "6.1.2",
+    "react": "19.3.1",
+    "react-dom": "19.3.1",
+    "tailwindcss": "4.3.3",
+    "typescript": "7.0.2",
+    "vite": "8.3.5"
+  }
+}

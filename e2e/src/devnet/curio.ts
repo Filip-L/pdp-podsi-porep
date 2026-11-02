@@ -492,8 +492,8 @@ export function assertCurioStatus(
 ): void {
   if (status.generation !== generation) throw new Error("DevNet generation is stale");
   if (status.miner?.provider !== provider) throw new Error("Curio provider is stale");
-  if (status.chain?.networkVersion !== 28 || status.chain.actorsVersion !== 18) {
-    throw new Error("DevNet is not running NV28 actors v18");
+  if (status.chain?.networkVersion !== 29 || status.chain.actorsVersion !== 19) {
+    throw new Error("DevNet is not running NV29 actors v19");
   }
   if (status.miner.sectorSize !== 8_388_608) throw new Error("DevNet sector size is not 8 MiB");
   if (status.curio?.apiReady !== true) throw new Error("Curio API is not ready");

@@ -37,6 +37,12 @@ const sptoolPatchPath = join(
   "curio",
   "0001-sptool-mk20-notification-flags.patch",
 );
+const sptoolRawAggregatePatchPath = join(
+  repositoryRoot,
+  "patches",
+  "curio",
+  "0002-sptool-mk20-aggregate-raw-subpieces.patch",
+);
 const commonScriptPath = join(repositoryRoot, "scripts", "devnet-common.sh");
 const runtimeLockPath = join(repositoryRoot, "versions.lock.yaml");
 const composePath = join(repositoryRoot, "docker", "compose.curio-devnet.yaml");
@@ -45,7 +51,7 @@ const downScriptPath = join(repositoryRoot, "scripts", "devnet-down.sh");
 const resetScriptPath = join(repositoryRoot, "scripts", "devnet-reset.sh");
 const logsScriptPath = join(repositoryRoot, "scripts", "devnet-logs.sh");
 const statusScriptPath = join(repositoryRoot, "scripts", "devnet-status.sh");
-const curioSourceCommit = "ce15c0c92209366a5523b803e9c159baa2ffb66a";
+const curioSourceCommit = "409a2ab3510d65f22ae31ba1afddc911f4b315d7";
 const derivedImageServices = [
   "lotus",
   "contracts-bootstrap",
@@ -76,6 +82,23 @@ test("Curio build exposes the existing MK20 notification fields through sptool",
   assert.match(buildScript, /sources verify/);
 });
 
+test("Curio build lets sptool mark aggregate sub-pieces as raw", async () => {
+  const [dockerfile, patch] = await Promise.all([
+    readFile(dockerfilePath, "utf8"),
+    readFile(sptoolRawAggregatePatchPath, "utf8"),
+  ]);
+
+  assert.match(patch, /len\(parts\) != 2 && len\(parts\) != 3/);
+  assert.match(patch, /case "raw":\n\+\s+format = mk20\.PieceDataFormat\{Raw: &mk20\.FormatBytes\{\}\}/);
+  assert.match(dockerfile, /COPY --from=harness-overlay .*0002-sptool-mk20-aggregate-raw-subpieces\.patch/);
+  assert.match(dockerfile, /git apply --check .*sptool-mk20-aggregate-raw-subpieces\.patch/);
+  assert.ok(
+    dockerfile.indexOf("0001-sptool-mk20-notification-flags.patch") <
+      dockerfile.indexOf("0002-sptool-mk20-aggregate-raw-subpieces.patch"),
+    "0002 is built on top of 0001 and must be applied after it",
+  );
+});
+
 test("devnet status accepts only complete semantic readiness evidence", async () => {
   const lock = await loadRuntimeLock(runtimeLockPath);
   const provider = "t01001";
@@ -85,7 +108,7 @@ test("devnet status accepts only complete semantic readiness evidence", async ()
     generation: "generation-one",
     build: {
       curioCommit: curioSourceCommit,
-      lotusCommit: "154c0c3a46e92006008818bb06aaf959e2e705a9",
+      lotusCommit: "29d72bdf77d13e6e3e20264d7a9167feb2a41ab0",
       platform: "linux/arm64",
     },
     compose: lock.runtime.services.map((service) => ({
@@ -97,10 +120,10 @@ test("devnet status accepts only complete semantic readiness evidence", async ()
     chain: {
       chainId: "0x1df5e76",
       epoch: 250,
-      networkVersion: 28,
-      actorsVersion: 18,
-      manifestCid: lock.network.actorsV18.manifestCid,
-      minerActorCodeCid: lock.network.actorsV18.storageMinerActorCid,
+      networkVersion: 29,
+      actorsVersion: 19,
+      manifestCid: lock.network.upgradeActors.manifestCid,
+      minerActorCodeCid: lock.network.upgradeActors.storageMinerActorCid,
     },
     miner: {
       provider,
@@ -168,7 +191,7 @@ async function renderTaskThreeCompose(): Promise<{
     ".cache",
     "sources",
     "filecoin_services",
-    "e485abae3f89775b3c9a0014c74a60ae9e98fe8c",
+    "649e23f3329abf6a24d01c30359958ee7d0e0948",
   );
   const multicall3Source = join(
     fixtureRoot,
@@ -703,7 +726,7 @@ if [[ " $* " == *" sources verify "* ]]; then
   printf 'curio\\t/fixture\\t${curioCommit}\\t${curioCommit}\\tdetached\\tclean\\t\\n'
   printf 'lotus\\t/fixture\\t${lotusCommit}\\t${lotusCommit}\\tdetached\\tclean\\t\\n'
   printf 'blst\\t/fixture\\t${blstCommit}\\t${blstCommit}\\tdetached\\tclean\\t\\n'
-  printf 'filecoin_services\\t/fixture\\te485abae3f89775b3c9a0014c74a60ae9e98fe8c\\te485abae3f89775b3c9a0014c74a60ae9e98fe8c\\tdetached\\tclean\\t\\n'
+  printf 'filecoin_services\\t/fixture\\t649e23f3329abf6a24d01c30359958ee7d0e0948\\t649e23f3329abf6a24d01c30359958ee7d0e0948\\tdetached\\tclean\\t\\n'
   printf 'multicall3\\t/fixture\\tb667d67ecfa5361a81e8f110234ce242613b0012\\tb667d67ecfa5361a81e8f110234ce242613b0012\\tdetached\\tclean\\t\\n'
   exit 0
 fi
@@ -948,7 +971,7 @@ test("compose inspector rejects a macOS home-directory mount", async () => {
 test("compose supplies the pinned piece-server ready marker at its hardcoded path", async () => {
   const compose = await readFile(composePath, "utf8");
   const pinnedEntrypoint = await readFile(
-    join(repositoryRoot, ".cache", "sources", "curio", "ce15c0c92209366a5523b803e9c159baa2ffb66a", "docker", "piece-server", "entrypoint.sh"),
+    join(repositoryRoot, ".cache", "sources", "curio", "409a2ab3510d65f22ae31ba1afddc911f4b315d7", "docker", "piece-server", "entrypoint.sh"),
     "utf8",
   );
 
@@ -1050,7 +1073,6 @@ test("devnet build uses only immutable Docker and source inputs", async () => {
     /(?:\blatest\b|@master\b|@main\b|foundryup|nodesource|git\s+clone|git\s+submodule\s+update)/i,
   );
   for (const argument of [
-    "LOTUS_TEST_IMAGE",
     "GO_BUILDER_IMAGE",
     "RUST_TOOLCHAIN_IMAGE",
     "UBUNTU_RUNTIME_IMAGE",
@@ -1061,7 +1083,6 @@ test("devnet build uses only immutable Docker and source inputs", async () => {
     assert.match(dockerfile, new RegExp(`FROM \\\${${argument}}(?:\\s|$)`));
   }
   for (const imageName of [
-    "lotus_devnet",
     "go_builder",
     "rust_toolchain",
     "ubuntu_runtime",
@@ -1081,7 +1102,6 @@ test("devnet build declares every base-image argument once before the first FROM
   assert.ok(firstFrom >= 0);
 
   const expectedArguments = {
-    LOTUS_TEST_IMAGE: lock.images.lotus_devnet.resolvedReference,
     RUST_TOOLCHAIN_IMAGE: lock.images.rust_toolchain.resolvedReference,
     GO_BUILDER_IMAGE: lock.images.go_builder.resolvedReference,
     NODE_RUNTIME_IMAGE: lock.images.node_runtime.resolvedReference,
@@ -1512,7 +1532,7 @@ test("all project Dockerfiles omit VOLUME and derived definitions transparently 
 
   assert.match(
     buildScript,
-    /--file "\$\{relative_dockerfile\}"[\s\S]*"\$\{curio_source_relative\}\/\$\{relative_context\}"/,
+    /context_path="\$\{curio_source_relative\}\/\$\{relative_context\}"[\s\S]*--file "\$\{relative_dockerfile\}"[\s\S]*"\$\{context_path\}"/,
   );
   assert.doesNotMatch(
     buildScript,

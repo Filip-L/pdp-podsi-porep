@@ -1,0 +1,41 @@
+diff --git a/cmd/sptool/toolbox_deal_client.go b/cmd/sptool/toolbox_deal_client.go
+index b81e63c..9c4e27a 100644
+--- a/cmd/sptool/toolbox_deal_client.go
++++ b/cmd/sptool/toolbox_deal_client.go
+@@ -1832,8 +1832,8 @@ var mk20DealCmd = &cli.Command{
+ 			for scanner.Scan() {
+ 				line := scanner.Text()
+ 				parts := strings.Split(line, "\t")
+-				if len(parts) != 2 {
+-					return fmt.Errorf("invalid line format. Expected pieceCidV2, url at %s", line)
++				if len(parts) != 2 && len(parts) != 3 {
++					return fmt.Errorf("invalid line format. Expected pieceCidV2, url[, car|raw] at %s", line)
+ 				}
+ 				if parts[0] == "" || parts[1] == "" {
+ 					return fmt.Errorf("empty column value in the input file at %s", line)
+@@ -1849,11 +1849,21 @@ var mk20DealCmd = &cli.Command{
+ 					return fmt.Errorf("failed to parse url: %w", err)
+ 				}
+ 
++				// Optional third column selects the sub-piece format; CAR stays the default.
++				format := mk20.PieceDataFormat{Car: &mk20.FormatCar{}}
++				if len(parts) == 3 {
++					switch parts[2] {
++					case "car":
++					case "raw":
++						format = mk20.PieceDataFormat{Raw: &mk20.FormatBytes{}}
++					default:
++						return fmt.Errorf("invalid sub-piece format %q, expected car or raw at %s", parts[2], line)
++					}
++				}
++
+ 				pieces = append(pieces, mk20.DataSource{
+-					PieceCID: pieceCid,
+-					Format: mk20.PieceDataFormat{
+-						Car: &mk20.FormatCar{},
+-					},
++					PieceCID:   pieceCid,
++					Format:     format,
+ 					SourceHTTP: &mk20.DataSourceHTTP{
+ 						URLs: []mk20.HttpUrl{
+ 							{

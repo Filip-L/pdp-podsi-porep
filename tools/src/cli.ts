@@ -183,13 +183,13 @@ export async function main(args: string[] = process.argv.slice(2)): Promise<void
       "network",
       runtimeLock.network.chainId,
       `NV${runtimeLock.network.genesis.networkVersion}/actors-v${runtimeLock.network.genesis.actorsVersion}`,
-      `epoch-${runtimeLock.network.firehorse.epoch}=NV${runtimeLock.network.firehorse.networkVersion}/actors-v${runtimeLock.network.firehorse.actorsVersion}`,
+      `epoch-${runtimeLock.network.upgrade.epoch}=NV${runtimeLock.network.upgrade.networkVersion}/actors-v${runtimeLock.network.upgrade.actorsVersion}`,
     ].join("\t"));
-    console.log(["actor", "v18-manifest", runtimeLock.network.actorsV18.manifestCid].join("\t"));
+    console.log(["actor", `v${runtimeLock.network.upgrade.actorsVersion}-manifest`, runtimeLock.network.upgradeActors.manifestCid].join("\t"));
     console.log([
       "actor",
-      "v18-storage-miner",
-      runtimeLock.network.actorsV18.storageMinerActorCid,
+      `v${runtimeLock.network.upgrade.actorsVersion}-storage-miner`,
+      runtimeLock.network.upgradeActors.storageMinerActorCid,
     ].join("\t"));
     for (const image of Object.values(runtimeLock.images)) {
       console.log([

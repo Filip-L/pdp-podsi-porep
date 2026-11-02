@@ -33,6 +33,18 @@ ensure_meta_allocator_notary() {
   )"
   [[ "${meta_filecoin}" == t4* ]] || devnet_die "could not resolve MetaAllocator Filecoin address"
 
+  # FIP-0118 (NV29 Solstice) freezes the verified registry, so notaries can no longer be added.
+  local network_version
+  network_version="$(
+    devnet_compose exec -T lotus lotus state network-version |
+      awk '/Network Version:/ {print $3}' |
+      tr -d '\r\n'
+  )"
+  if [[ "${network_version}" =~ ^[0-9]+$ ]] && ((network_version >= 29)); then
+    printf 'MetaAllocator DataCap authority skipped: verified registry is frozen at NV%s\n' "${network_version}"
+    return 0
+  fi
+
   current="$(devnet_compose exec -T lotus lotus filplus check-notary-datacap "${meta_filecoin}" 2>/dev/null || true)"
   if [[ -n "${current}" && "${current}" != *"not found"* ]]; then
     return 0

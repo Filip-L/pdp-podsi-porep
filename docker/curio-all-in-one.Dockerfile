@@ -1,11 +1,8 @@
-ARG LOTUS_TEST_IMAGE=ghcr.io/filecoin-shipyard/lotus-containers:lotus-v1.36.0-devnet@sha256:aeb1de6103a07ee316d45d09141a8063fc67fa99d14289c38fe0f2aeee84f4a9
 ARG RUST_TOOLCHAIN_IMAGE=docker.io/library/rust:1.86.0-slim-bookworm@sha256:57d415bbd61ce11e2d5f73de068103c7bd9f3188dc132c97cef4a8f62989e944
-ARG GO_BUILDER_IMAGE=docker.io/library/golang:1.26-trixie@sha256:4ee9ffa999b4583ce281939cdff828763083610292f252279a0cee77473bd9a7
+ARG GO_BUILDER_IMAGE=docker.io/library/golang:1.26-trixie@sha256:6427f09fc28b78d6ccac20bbc2011794126b49f2f43c424aa5a197c642a8be36
 ARG NODE_RUNTIME_IMAGE=docker.io/library/node:24.14.0-bookworm-slim@sha256:d8e448a56fc63242f70026718378bd4b00f8c82e78d20eefb199224a4d8e33d8
 ARG FOUNDRY_IMAGE=ghcr.io/foundry-rs/foundry:v1.7.1@sha256:8347b728d5d393dac1c018691b36f506d23b9dcd78341d40ea0fcb11c3a19cdd
 ARG UBUNTU_RUNTIME_IMAGE=docker.io/library/ubuntu:24.04@sha256:4fbb8e6a8395de5a7550b33509421a2bafbc0aab6c06ba2cef9ebffbc7092d90
-
-FROM ${LOTUS_TEST_IMAGE} AS lotus-test
 
 FROM ${RUST_TOOLCHAIN_IMAGE} AS rust-toolchain
 
@@ -56,6 +53,9 @@ COPY . .
 COPY --from=harness-overlay patches/curio/0001-sptool-mk20-notification-flags.patch /tmp/sptool-mk20-notification-flags.patch
 RUN git apply --check /tmp/sptool-mk20-notification-flags.patch \
     && git apply /tmp/sptool-mk20-notification-flags.patch
+COPY --from=harness-overlay patches/curio/0002-sptool-mk20-aggregate-raw-subpieces.patch /tmp/sptool-mk20-aggregate-raw-subpieces.patch
+RUN git apply --check /tmp/sptool-mk20-aggregate-raw-subpieces.patch \
+    && git apply /tmp/sptool-mk20-aggregate-raw-subpieces.patch
 COPY --from=blst-builder /opt/blst /opt/curio/extern/supraseal/deps/blst
 
 ARG CURIO_COMMIT
@@ -73,6 +73,45 @@ RUN mkdir -p build \
        make build \
          CURIO_BUILD_COMMIT="${CURIO_COMMIT}" \
          CURIO_TAGS="${CURIO_TAGS}"
+
+FROM ${GO_BUILDER_IMAGE} AS lotus-builder
+
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends \
+      build-essential \
+      ca-certificates \
+      clang \
+      git \
+      jq \
+      libhwloc-dev \
+      make \
+      ocl-icd-libopencl1 \
+      ocl-icd-opencl-dev \
+      pkg-config \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY --from=rust-toolchain /usr/local/cargo /usr/local/cargo
+COPY --from=rust-toolchain /usr/local/rustup /usr/local/rustup
+
+ENV CARGO_HOME=/usr/local/cargo \
+    RUSTUP_HOME=/usr/local/rustup \
+    PATH=/usr/local/cargo/bin:${PATH} \
+    XDG_CACHE_HOME=/tmp
+
+WORKDIR /opt/lotus
+COPY --from=lotus-source / ./
+
+# No prebuilt lotus-vX-devnet image exists past v1.36.1, so build the debug
+# (2k + insecure PoSt) DevNet binaries from the verified managed source.
+RUN --mount=type=cache,target=/go/pkg/mod \
+    --mount=type=cache,target=/root/.cache/go-build \
+    mkdir -p build \
+    && touch build/.update-modules \
+    && FFI_BUILD_FROM_SOURCE=1 \
+       FFI_USE_OPENCL=1 \
+       CARGO_BUILD_JOBS=2 \
+       GOMAXPROCS=2 \
+       make debug-lotus debug-lotus-miner debug-lotus-seed debug-lotus-shed
 
 FROM ${GO_BUILDER_IMAGE} AS service-tool-builder
 
@@ -93,6 +132,26 @@ RUN --mount=type=cache,target=/go/pkg/mod \
 RUN --mount=type=cache,target=/go/pkg/mod \
     --mount=type=cache,target=/root/.cache/go-build \
     GOMAXPROCS=2 go install "github.com/ethereum/go-ethereum/cmd/geth@${GO_ETHEREUM_COMMIT}"
+
+# filecoin-services v1.5+ assembles the ERC-8167 dispatcher with wjmelements/evm at the
+# revision pinned in service_contracts/Makefile (EVM_REVISION).
+FROM ${UBUNTU_RUNTIME_IMAGE} AS evm-builder
+
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends \
+      autoconf \
+      automake \
+      build-essential \
+      ca-certificates \
+      libcurl4-openssl-dev \
+      libtool \
+      perl \
+    && rm -rf /var/lib/apt/lists/*
+
+ADD https://github.com/wjmelements/evm.git#98409233b4ed9fb79efa013fe17ad42b155adf03 /opt/evm
+WORKDIR /opt/evm
+RUN make bin/evm \
+    && test -x bin/evm
 
 FROM ${NODE_RUNTIME_IMAGE} AS node-runtime
 
@@ -127,11 +186,12 @@ COPY --from=foundry /usr/local/bin/forge /usr/local/bin/forge
 COPY --from=foundry /usr/local/bin/cast /usr/local/bin/cast
 COPY --from=foundry /usr/local/bin/anvil /usr/local/bin/anvil
 COPY --from=foundry /usr/local/bin/chisel /usr/local/bin/chisel
+COPY --from=evm-builder /opt/evm/bin/evm /usr/local/bin/evm
 
-COPY --from=lotus-test /usr/local/bin/lotus /usr/local/bin/lotus
-COPY --from=lotus-test /usr/local/bin/lotus-seed /usr/local/bin/lotus-seed
-COPY --from=lotus-test /usr/local/bin/lotus-shed /usr/local/bin/lotus-shed
-COPY --from=lotus-test /usr/local/bin/lotus-miner /usr/local/bin/lotus-miner
+COPY --from=lotus-builder /opt/lotus/lotus /usr/local/bin/lotus
+COPY --from=lotus-builder /opt/lotus/lotus-seed /usr/local/bin/lotus-seed
+COPY --from=lotus-builder /opt/lotus/lotus-shed /usr/local/bin/lotus-shed
+COPY --from=lotus-builder /opt/lotus/lotus-miner /usr/local/bin/lotus-miner
 COPY --from=curio-builder /opt/curio/curio /usr/local/bin/curio
 COPY --from=curio-builder /opt/curio/sptool /usr/local/bin/sptool
 COPY --from=service-tool-builder /go/bin/car /usr/local/bin/car

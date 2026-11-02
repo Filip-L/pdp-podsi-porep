@@ -27,8 +27,8 @@ test("loads the nine checked-in managed sources", async () => {
 
   assert.equal(sources.length, 9);
   assert.deepEqual(sources.find((source) => source.name === "curio")?.submodules, {
-    "extern/filecoin-ffi": "fbe802089480458d730cbce8a3ca83dcd84a4cd1",
-    "extern/supraseal/deps/sppark": "73c8a4586b15fc7227f8736d3f31ff6b35d261a4",
+    "extern/filecoin-ffi": "f9b4aecf63c4ee7c90119693aad3fed947856527",
+    "extern/supraseal/deps/sppark": "813d73cfcb3afdc166c00960b37734b23504ac96",
   });
 });
 

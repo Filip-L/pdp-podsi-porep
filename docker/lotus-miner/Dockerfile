@@ -1,4 +1,4 @@
-ARG CURIO_TEST_IMAGE=porep-market-curio-devnet/curio-all-in-one:ce15c0c92209
+ARG CURIO_TEST_IMAGE=porep-market-curio-devnet/curio-all-in-one:409a2ab3510d
 #############################################################################
 FROM ${CURIO_TEST_IMAGE}
 
